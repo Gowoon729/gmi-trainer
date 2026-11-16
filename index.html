@@ -78,7 +78,18 @@
     .hist th,.hist td{border-bottom:1px solid #334155;padding:7px 4px;text-align:center}
     .hist th{color:var(--sub);font-weight:600}
     .pt-tag{font-size:.85rem;color:var(--sub);margin-bottom:8px}
-    header{gap:8px}
+    header{gap:10px}
+    .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+    .tab{background:#334155;color:var(--text);border:none;padding:10px 4px;border-radius:8px;font-size:.92rem;font-weight:700;cursor:pointer}
+    .tab.on{background:var(--accent);color:#000}
+    .cmp-card{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;margin-top:10px}
+    .cmp-card h4{font-size:.95rem;margin-bottom:6px}
+    .cmp-row{display:grid;grid-template-columns:1.1fr 1fr 1fr 1fr;gap:4px;font-size:.85rem;padding:6px 0;border-bottom:1px solid #1e293b;align-items:center;text-align:center}
+    .cmp-row:first-of-type{color:var(--sub);font-size:.78rem}
+    .cmp-row > span:first-child{text-align:left;color:var(--sub)}
+    .up{color:#34d399;font-weight:800}.down{color:#f87171;font-weight:800}.flat{color:var(--sub);font-weight:700}
+    .mem-chip{display:inline-block;margin:0 6px 6px 0;padding:8px 12px;border-radius:999px;background:#334155;color:#f8fafc;border:none;font-size:.88rem;cursor:pointer}
+    .mem-chip.on{background:var(--accent);color:#000;font-weight:700}
     header .nav-btn{white-space:nowrap;padding:8px 10px}
     @media (max-width:420px){ h1{font-size:1.05rem} }
     .hist th{white-space:nowrap}
@@ -268,12 +279,13 @@
 <body>
 
 <div class="container">
-  <header>
+  <header style="flex-direction:column;align-items:stretch;">
     <h1>🧠 GMI 좌우 판별 훈련기</h1>
-    <div style="display:flex;gap:6px;">
-      <button class="nav-btn" id="patientBtn" onclick="goPatient()">👤 회원</button>
-      <button class="nav-btn" id="toggleViewBtn" onclick="toggleSettings()">⚙️ 설정</button>
-    </div>
+    <nav class="tabs">
+      <button class="tab" id="tab-patient" onclick="goPatient()">👤 회원</button>
+      <button class="tab" id="tab-records" onclick="goRecords()">🗂 기록</button>
+      <button class="tab" id="tab-settings" onclick="toggleSettings()">⚙️ 설정</button>
+    </nav>
   </header>
 
   <!-- 환자 정보 화면 -->
@@ -375,6 +387,13 @@
     <button class="nav-btn" style="width:100%; margin-top:16px; background:var(--accent); color:#000; padding:12px;" onclick="returnToTraining()">✔ 설정 완료 및 훈련 화면으로</button>
   </div>
 
+  <!-- 기록 관리 화면 -->
+  <div id="recordsView" class="view">
+    <div style="font-size:.85rem;color:var(--sub);margin-bottom:6px;">회원 선택</div>
+    <div id="recMembers"></div>
+    <div id="recBody"></div>
+  </div>
+
   <!-- 결과 화면 -->
   <div id="resultView" class="view">
     <h2 style="margin-bottom:6px; font-size:1.2rem;">📊 훈련 결과 리포트</h2>
@@ -414,7 +433,7 @@
 
 <div id="gmiModal" class="gmi-modal"><div class="gmi-modal-box"><div id="gmiModalMsg"></div><div class="gmi-modal-btns"><button id="gmiModalNo" style="background: rgb(71, 85, 105); color: rgb(255, 255, 255); display: none;">취소</button><button id="gmiModalOk" style="background:#38bdf8;color:#000">확인</button></div></div></div>
 <script>
-  const APP_VERSION = '2026.11.17c';
+  const APP_VERSION = '2026.11.17d';
   const PART_KO = { upper: '상지', lower: '하지' };
   function partOf(x){ return (x && x.part) === 'lower' ? 'lower' : 'upper'; }
   function setPartVal(){ return segVal('setPart') || 'upper'; }
@@ -443,7 +462,7 @@
   function pickSeg(id, btn){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on', b===btn)); }
   function segVal(id){ const b=document.querySelector('#'+id+' button.on'); return b ? b.dataset.v : ''; }
   function setSeg(id, v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on', b.dataset.v===v)); }
-  function showView(id){ ['patientView','trainView','settingsView','resultView'].forEach(v=>document.getElementById(v).classList.toggle('active', v===id)); document.getElementById('toggleViewBtn').innerText = id==='settingsView' ? '⬅️ 돌아가기' : '⚙️ 설정'; }
+  function showView(id){ ['patientView','trainView','settingsView','resultView','recordsView'].forEach(v=>document.getElementById(v).classList.toggle('active', v===id)); const tab = id==='recordsView' ? 'records' : id==='settingsView' ? 'settings' : id==='patientView' ? 'patient' : ''; ['patient','records','settings'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('on', t===tab)); }
   function renderSavedPatients(){
     const box = document.getElementById('savedPatients'); const all = loadAll(); const keys = Object.keys(all);
     if (!keys.length) { box.innerHTML = ''; return; }
@@ -495,6 +514,84 @@
     if (currentPatient && pKey(currentPatient) === k) currentPatient = null;
     renderSavedPatients();
   };
+  // ===== 기록 관리 화면 =====
+  let recKey = null;
+  function sideTitlesFor(p){ const s = p ? p.side : 'N'; return { L: '왼쪽' + (s==='L'?'(환측)':s==='R'?'(건측)':''), R: '오른쪽' + (s==='R'?'(환측)':s==='L'?'(건측)':'') }; }
+  function goRecords(){
+    isPlaying = false; clearInterval(timerInterval);
+    const all = loadAll(); const keys = Object.keys(all);
+    if (!recKey || !all[recKey]) recKey = (currentPatient && all[pKey(currentPatient)]) ? pKey(currentPatient) : keys[0] || null;
+    renderRecords(); showView('recordsView');
+  }
+  window.selectRecMember = function(i){ recKey = Object.keys(loadAll())[i]; renderRecords(); };
+  function diffHtml(a, b, unit, higherBetter, digits){
+    const d = +(b - a).toFixed(digits); if (d === 0) return `<span class="flat">0${unit}</span>`;
+    const good = higherBetter ? d > 0 : d < 0;
+    return `<span class="${good ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d.toFixed(digits)}${unit}</span>`;
+  }
+  function renderRecords(){
+    const all = loadAll(); const keys = Object.keys(all);
+    const mBox = document.getElementById('recMembers'), body = document.getElementById('recBody');
+    if (!keys.length) { mBox.innerHTML = ''; body.innerHTML = '<p style="color:var(--sub);margin-top:10px;">이 기기에 저장된 회원 기록이 없습니다.</p>'; return; }
+    mBox.innerHTML = keys.map((k,i)=>{ const p = all[k].patient; return `<button class="mem-chip${k===recKey?' on':''}" type="button" onclick="selectRecMember(${i})">${escapeHtml(p.name)} · ${p.age}세 · ${p.sex} (${all[k].records.length})</button>`; }).join('');
+    const ent = all[recKey]; const p = ent.patient; const t = sideTitlesFor(p);
+    const recs = ent.records.map((r,i)=>({...r,_i:i}));
+    let html = `<div class="pt-tag" style="margin-top:8px;">${escapeHtml(p.name)} (${p.age}세, ${p.sex}) · 환측 ${p.side==='L'?'왼쪽':p.side==='R'?'오른쪽':'해당 없음'}</div>`;
+    // 전후 비교 (부위별 첫 기록 vs 최근 기록)
+    ['upper','lower'].forEach(part => {
+      const list = recs.filter(r => partOf(r) === part).sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a._i - b._i);
+      if (!list.length) return;
+      const f = list[0], l = list[list.length-1];
+      html += `<div class="cmp-card"><h4>📊 ${PART_KO[part]} 전후 비교 <span style="color:var(--sub);font-weight:400;font-size:.8rem;">(총 ${list.length}회)</span></h4>`;
+      if (list.length === 1) { html += `<div style="font-size:.85rem;color:var(--sub);">기록이 1회뿐이라 비교할 수 없습니다. (${f.date.slice(0,10)} · 정확도 ${f.acc}% · ${f.rt}초)</div></div>`; return; }
+      const row = (lbl, a, b, unit, hb, dg) => `<div class="cmp-row"><span>${lbl}</span><span>${a}${unit}</span><span>${b}${unit}</span><span>${diffHtml(+a, +b, unit, hb, dg)}</span></div>`;
+      html += `<div class="cmp-row"><span></span><span>첫 기록<br>${f.date.slice(5,10)}</span><span>최근<br>${l.date.slice(5,10)}</span><span>변화</span></div>` +
+        row('정확도', f.acc, l.acc, '%', true, 0) + row('평균 반응', f.rt, l.rt, '초', false, 2) +
+        row(t.L + ' 정확도', f.lAcc, l.lAcc, '%', true, 0) + row(t.L + ' 반응', f.lRt, l.lRt, '초', false, 2) +
+        row(t.R + ' 정확도', f.rAcc, l.rAcc, '%', true, 0) + row(t.R + ' 반응', f.rRt, l.rRt, '초', false, 2) + `</div>`;
+    });
+    // 전체 기록 표
+    const sub = x => x.replace(/^(왼쪽|오른쪽)(\(.+\))?$/, (m,a,b)=> a + (b ? '<small>' + b + '</small>' : ''));
+    html += `<h3 style="font-size:1rem;margin-top:18px;">🗂 전체 기록</h3>`;
+    if (!recs.length) html += '<p style="color:var(--sub);font-size:.85rem;margin-top:8px;">기록이 없습니다.</p>';
+    else html += `<table class="hist"><tr><th>날짜</th><th>문항<small>부위</small></th><th>정확도</th><th>평균</th><th>${sub(t.L)}</th><th>${sub(t.R)}</th><th></th></tr>` +
+      recs.slice().reverse().map(r=>`<tr><td>${r.date.slice(5,10)}<small>${r.date.slice(0,4)} ${r.date.slice(11)}</small></td><td>${r.n}<small>${PART_KO[partOf(r)]}</small></td><td>${r.acc}%</td><td>${r.rt}초</td><td>${r.lAcc}%<br>${r.lRt}초</td><td>${r.rAcc}%<br>${r.rRt}초</td><td><button class="rec-del" type="button" onclick="recDeleteOne(${r._i})">✕</button></td></tr>`).join('') + '</table>';
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">
+      <button class="nav-btn" style="background:var(--accent);color:#000;padding:12px;" onclick="recTrain()">▶ 이 회원 훈련</button>
+      <button class="nav-btn" style="padding:12px;" onclick="recCopy()">📋 기록 복사</button>
+      <button class="nav-btn" style="padding:12px;background:#7f1d1d;" onclick="recDeleteAll()">🗑 기록 전체 삭제</button>
+      <button class="nav-btn" style="padding:12px;background:#7f1d1d;" onclick="recDeleteMember()">❌ 회원 삭제</button></div>`;
+    body.innerHTML = html;
+  }
+  window.recDeleteOne = async function(i){
+    const all = loadAll(); const r = all[recKey] && all[recKey].records[i]; if (!r) return;
+    if (!await gmiConfirm(`이 기록을 삭제할까요?\n${r.date} · ${PART_KO[partOf(r)]} · ${r.n}문제 · 정확도 ${r.acc}%`)) return;
+    all[recKey].records.splice(i, 1); saveAll(all); renderRecords();
+  };
+  async function recDeleteAll(){
+    const all = loadAll(); const ent = all[recKey]; if (!ent) return;
+    if (!ent.records.length) { gmiAlert('삭제할 기록이 없습니다.'); return; }
+    if (!await gmiConfirm(`${ent.patient.name}님의 기록 ${ent.records.length}건을 모두 삭제할까요?\n회원 정보는 남습니다. 되돌릴 수 없습니다.`)) return;
+    ent.records = []; saveAll(all); renderRecords();
+  }
+  async function recDeleteMember(){
+    const all = loadAll(); const ent = all[recKey]; if (!ent) return;
+    if (!await gmiConfirm(`${ent.patient.name} (${ent.patient.age}세, ${ent.patient.sex}) 회원과 기록 ${ent.records.length}건을 모두 삭제할까요?\n되돌릴 수 없습니다.`)) return;
+    delete all[recKey]; saveAll(all);
+    if (currentPatient && pKey(currentPatient) === recKey) currentPatient = null;
+    recKey = Object.keys(all)[0] || null; renderRecords();
+  }
+  function recCopy(){
+    const ent = loadAll()[recKey]; if (!ent || !ent.records.length) { gmiAlert('복사할 기록이 없습니다.'); return; }
+    const p = ent.patient; const t = sideTitlesFor(p);
+    const lines = ent.records.map((r,i)=>`${i+1}. ${r.date} | ${PART_KO[partOf(r)]} | ${r.n}문제 | 정확도 ${r.acc}% | 평균 ${r.rt}초 | ${t.L} ${r.lAcc}%/${r.lRt}초 | ${t.R} ${r.rAcc}%/${r.rRt}초`);
+    copyText(`[GMI 좌우 판별 훈련 누적 기록]\n${p.name} (${p.age}세, ${p.sex})\n` + lines.join('\n'), '기록이 복사되었습니다!');
+  }
+  function recTrain(){
+    const ent = loadAll()[recKey]; if (!ent) return;
+    currentPatient = { ...ent.patient };
+    goPatient();
+  }
   function copyText(text, okMsg){
     const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); let ok=false; try { ok = document.execCommand('copy'); } catch(e) {} ta.remove(); gmiAlert(ok ? okMsg : '복사가 막혀 있어요. 아래 내용을 길게 눌러 복사해 주세요.\n\n' + text); };
     try { navigator.clipboard.writeText(text).then(() => gmiAlert(okMsg), fallback); } catch(e) { fallback(); }
@@ -763,9 +860,7 @@
   }
 
   function toggleSettings() {
-    if (document.getElementById('settingsView').classList.contains('active')) {
-      returnToTraining();
-    } else {
+    {
       isPlaying = false;
       clearInterval(timerInterval);
       showView('settingsView');
