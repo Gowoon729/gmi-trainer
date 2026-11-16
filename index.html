@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GMI 좌우 판별 훈련기</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GMI 훈련기">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --sub: #94a3b8;
+      --left-btn: #2563eb;
+      --right-btn: #059669;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+    .container {
+      width: 100%;
+      max-width: 680px;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #334155;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+    .nav-btn {
+      background: #334155;
+      color: var(--text);
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .nav-btn:hover { background: #475569; }
+
+    /* Views */
+    .pt-field{margin-bottom:14px}
+    .pt-field label{display:block;font-size:.9rem;color:var(--sub);margin-bottom:6px}
+    .pt-field input,.pt-field select{width:100%;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:8px;padding:12px;font-size:1rem;user-select:text;-webkit-user-select:text}
+    .seg{display:flex;gap:8px}
+    .seg button{flex:1;padding:12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#f8fafc;font-size:1rem;font-weight:700;cursor:pointer}
+    .seg button.on{background:var(--accent);color:#000;border-color:var(--accent)}
+    .pt-chip{display:inline-block;margin:0 6px 6px 0;padding:6px 10px;border-radius:999px;background:#334155;color:#f8fafc;border:none;font-size:.85rem;cursor:pointer}
+    .hist{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}
+    .hist th,.hist td{border-bottom:1px solid #334155;padding:7px 4px;text-align:center}
+    .hist th{color:var(--sub);font-weight:600}
+    .pt-tag{font-size:.85rem;color:var(--sub);margin-bottom:8px}
+    header{gap:8px}
+    header .nav-btn{white-space:nowrap;padding:8px 10px}
+    @media (max-width:420px){ h1{font-size:1.05rem} }
+    .hist th{white-space:nowrap}
+    .hist td small,.hist th small{display:block;font-size:.7rem;color:var(--sub);font-weight:400}
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Status bar */
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.95rem;
+      color: var(--sub);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .stage {
+      width: 100%;
+      height: 320px;
+      background: #090d16;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 16px;
+      border: 2px solid #334155;
+    }
+    .stage img, .stage svg {
+      max-width: 85%;
+      max-height: 85%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      transition: transform 0.15s ease;
+    }
+    .feedback-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .choice-btn {
+      padding: 22px 16px;
+      font-size: 1.35rem;
+      font-weight: 800;
+      border: none;
+      border-radius: 12px;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.08s;
+    }
+    .choice-btn:active { transform: scale(0.97); }
+    .btn-left { background: var(--left-btn); }
+    .btn-right { background: var(--right-btn); }
+
+    /* Upload box */
+    .upload-box {
+      border: 2px dashed var(--accent);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(56, 189, 248, 0.05);
+      margin-bottom: 16px;
+    }
+    .upload-box input { display: none; }
+
+    .batch-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 10px;
+      background: #0f172a;
+      border-radius: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .small-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: white;
+    }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+    .photo-item {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      border: 1px solid #334155;
+      position: relative;
+    }
+    .photo-item.base .del-btn{display:none}
+    .photo-item.base .side-toggle button{cursor:default}
+    .base-tag{position:absolute;top:4px;left:4px;background:rgba(15,23,42,.85);color:var(--sub);font-size:.7rem;padding:2px 6px;border-radius:4px}
+    .photo-item img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+    .side-toggle {
+      display: flex;
+      gap: 4px;
+    }
+    .side-toggle button {
+      flex: 1;
+      padding: 5px 0;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: #334155;
+      color: #94a3b8;
+    }
+    .side-toggle button.active-L { background: var(--left-btn); color: white; }
+    .side-toggle button.active-R { background: var(--right-btn); color: white; }
+    .del-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(239,68,68,0.9);
+      color: white;
+      border: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    /* Results */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .stat-card {
+      background: #0f172a;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    .stat-title { font-size: 0.85rem; color: var(--sub); margin-bottom: 6px; }
+    .stat-val { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+    .option-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 0.95rem;
+    }
+
+    .gmi-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px}
+    .gmi-modal.show{display:flex}
+    .gmi-modal-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px;max-width:360px;width:100%;color:#f8fafc;line-height:1.5;white-space:pre-line}
+    .gmi-modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+    .gmi-modal-btns button{padding:8px 16px;border-radius:8px;border:none;font-weight:700;cursor:pointer}
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🧠 GMI 좌우 판별 훈련기</h1>
+    <div style="display:flex;gap:6px;">
+      <button class="nav-btn" id="patientBtn" onclick="goPatient()">👤 회원</button>
+      <button class="nav-btn" id="toggleViewBtn" onclick="toggleSettings()">⚙️ 설정</button>
+    </div>
+  </header>
+
+  <!-- 환자 정보 화면 -->
+  <div id="patientView" class="view active">
+    <div id="savedPatients" style="margin-bottom:10px;"></div>
+    <div class="pt-field"><label>훈련 부위</label><div class="seg" id="ptPart"><button type="button" data-v="upper" class="on" onclick="pickSeg('ptPart',this)">🖐 상지</button><button type="button" data-v="lower" onclick="pickSeg('ptPart',this)">🦶 하지</button></div></div>
+    <div class="pt-field"><label for="ptName">이름</label><input id="ptName" type="text" placeholder="예: 홍길동" autocomplete="off"></div>
+    <div class="pt-field"><label for="ptAge">나이</label><input id="ptAge" type="number" inputmode="numeric" min="1" max="120" placeholder="예: 45"></div>
+    <div class="pt-field"><label>성별</label><div class="seg" id="ptSex"><button type="button" data-v="남" onclick="pickSeg('ptSex',this)">남</button><button type="button" data-v="여" onclick="pickSeg('ptSex',this)">여</button></div></div>
+    <div class="pt-field"><label>환측 (아픈 쪽)</label><div class="seg" id="ptSide"><button type="button" data-v="L" onclick="pickSeg('ptSide',this)">왼쪽</button><button type="button" data-v="R" onclick="pickSeg('ptSide',this)">오른쪽</button><button type="button" data-v="N" onclick="pickSeg('ptSide',this)">해당 없음</button></div></div>
+    <button class="nav-btn" style="width:100%; background:var(--accent); color:#000; font-size:1.05rem; padding:14px;" onclick="startFromPatient()">▶ 훈련 시작</button>
+  </div>
+
+  <!-- 훈련 화면 -->
+  <div id="trainView" class="view">
+    <div class="pt-tag" id="patientTag"></div>
+    <div class="status-bar">
+      <span id="progressTxt">준비 완료</span>
+      <span id="timerTxt">0.00초</span>
+    </div>
+
+    <div class="stage" id="stageArea">
+      <div id="feedbackBadge" class="feedback-badge"></div>
+      <div id="cardContent" style="text-align:center; padding: 20px;">
+        <p style="color:var(--sub); margin-bottom:14px;">준비 완료! 아래 시작 버튼을 눌러주세요.<br>[⚙️ 사진 관리]에서 사진을 관리할 수 있습니다.</p>
+        <button class="nav-btn" style="background:var(--accent); color:#000; font-size:1.05rem; padding:12px 24px;" onclick="startSession()">▶ 훈련 시작하기</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="choice-btn btn-left" onclick="submitAnswer('L')">⬅️ 왼쪽 (Left)</button>
+      <button class="choice-btn btn-right" onclick="submitAnswer('R')">오른쪽 (Right) ➡️</button>
+    </div>
+  </div>
+
+  <!-- 사진 관리 및 설정 화면 -->
+  <div id="settingsView" class="view">
+    <div class="pt-field"><label>사진 관리 부위</label><div class="seg" id="setPart"><button type="button" data-v="upper" class="on" onclick="pickSeg('setPart',this); renderPhotoGrid()">🖐 상지</button><button type="button" data-v="lower" onclick="pickSeg('setPart',this); renderPhotoGrid()">🦶 하지</button></div></div>
+    <div style="font-size:0.82rem; color:var(--sub); line-height:1.5; margin-bottom:10px;">위에서 고른 부위로 사진이 추가됩니다. 기본 사진은 모든 사용자에게 똑같이 나옵니다. 여기서 추가한 사진은 <b>이 기기에만</b> 저장됩니다.</div>
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+      <label class="upload-box side-up" for="leftFileInput" style="flex:1; margin-bottom:0; border-color:var(--left-btn); background:rgba(37,99,235,0.08);">
+        <div style="font-size:1.8rem; font-weight:900; color:#93c5fd; margin-bottom:4px;">L</div>
+        <div style="font-weight:700; color:#93c5fd;">왼쪽 사진</div>
+        <div style="font-size:0.78rem; color:var(--sub); margin-top:4px;">눌러서 여러 장 선택</div>
+        <input type="file" id="leftFileInput" accept="image/*" multiple="" onchange="handleMultiFiles(event, 'L')">
+      </label>
+      <label class="upload-box side-up" for="rightFileInput" style="flex:1; margin-bottom:0; border-color:var(--right-btn); background:rgba(5,150,105,0.08);">
+        <div style="font-size:1.8rem; font-weight:900; color:#6ee7b7; margin-bottom:4px;">R</div>
+        <div style="font-weight:700; color:#6ee7b7;">오른쪽 사진</div>
+        <div style="font-size:0.78rem; color:var(--sub); margin-top:4px;">눌러서 여러 장 선택</div>
+        <input type="file" id="rightFileInput" accept="image/*" multiple="" onchange="handleMultiFiles(event, 'R')">
+      </label>
+    </div>
+    <label for="multiFileInput" style="display:block; text-align:center; font-size:0.82rem; color:var(--sub); margin-bottom:16px; cursor:pointer; text-decoration:underline;">
+      섞여 있으면: 파일명(L/R, 왼/오)으로 자동 분류해서 올리기
+      <input type="file" id="multiFileInput" accept="image/*" multiple="" style="display:none;" onchange="handleMultiFiles(event)">
+    </label>
+
+    <div id="backupBox" style="background:#0f172a; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:16px;">
+      <div style="font-weight:700; margin-bottom:6px;">💾 훈련 기록 백업</div>
+      <div style="font-size:0.85rem; color:var(--sub); line-height:1.5; margin-bottom:10px;">기록은 이 기기의 브라우저에만 저장됩니다. 폰을 바꾸거나 방문 기록을 지우기 전에 백업 파일로 내보내 두세요.</div>
+      <div style="display:flex; gap:8px;">
+        <button class="nav-btn" style="flex:1; background:var(--accent); color:#000; padding:12px;" onclick="exportRecords()">⬇️ 기록 내보내기</button>
+        <label class="nav-btn" style="flex:1; padding:12px; text-align:center;">⬆️ 기록 불러오기<input type="file" accept=".json,application/json" style="display:none;" onchange="importRecords(event)"></label>
+      </div>
+      <div id="exportStatus" style="font-size:0.8rem; color:var(--sub); margin-top:8px;"></div>
+    </div>
+
+    <div class="option-row">
+      <span>1회 훈련 문제 수</span>
+      <select id="totalQSelect" style="background:#0f172a; color:white; padding:6px 10px; border-radius:6px; border:1px solid #334155;">
+        <option value="10">10문제</option>
+        <option value="20" selected="">20문제</option>
+        <option value="30">30문제</option>
+        <option value="50">50문제</option>
+      </select>
+    </div>
+
+    <div class="option-row">
+      <span>무작위 회전 (0° / 90° / 180° / 270°)</span>
+      <input type="checkbox" id="rotateCheck" checked="" style="width:20px; height:20px;">
+    </div>
+
+    <div class="option-row" style="margin-bottom:12px;">
+      <span>내가 올린 사진만 출제 (기본 일러스트 제외)</span>
+      <input type="checkbox" id="customOnlyCheck" style="width:20px; height:20px;" checked="">
+    </div>
+
+    <div class="batch-bar">
+      <span id="photoCountTxt" style="font-size:0.9rem; font-weight:700;">등록된 사진: -</span>
+      <div style="display:flex; gap:6px;">
+        <button class="small-btn" style="background:#475569;" onclick="loadDefaultMasterPhotos()">기본 마스터 복원</button>
+        <button class="small-btn" style="background:var(--danger);" onclick="clearAllPhotos()">내 사진 전체 삭제</button>
+      </div>
+    </div>
+
+    <div id="photoGrid" class="photo-grid"></div>
+
+    <button class="nav-btn" style="width:100%; margin-top:16px; background:var(--accent); color:#000; padding:12px;" onclick="returnToTraining()">✔ 설정 완료 및 훈련 화면으로</button>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="resultView" class="view">
+    <h2 style="margin-bottom:6px; font-size:1.2rem;">📊 훈련 결과 리포트</h2>
+    <div class="pt-tag" id="resPatientTag"></div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-title">전체 정확도 (목표 ≥80%)</div>
+        <div class="stat-val" id="resAcc">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">평균 반응 시간 (목표 ≤2.0초)</div>
+        <div class="stat-val" id="resTime">0.00초</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title" id="resLeftTitle">왼쪽 정확도 / 시간</div>
+        <div class="stat-val" id="resLeft" style="font-size:1.1rem;">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title" id="resRightTitle">오른쪽 정확도 / 시간</div>
+        <div class="stat-val" id="resRight" style="font-size:1.1rem;">-</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="nav-btn" style="flex:1; background:var(--accent); color:#000; padding:12px;" onclick="startSession()">🔄 다시 훈련하기</button>
+      <button class="nav-btn" style="flex:1; padding:12px;" onclick="copyReport()">📋 이번 결과 복사</button>
+    </div>
+    <div style="margin-top:22px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="font-size:1rem;">🗂 누적 기록</h3>
+        <button class="small-btn" style="background:#475569;" onclick="copyAllRecords()">📋 전체 기록 복사</button>
+      </div>
+      <div id="historyBox"></div>
+    </div>
+    <button class="nav-btn" style="width:100%; margin-top:16px; padding:12px;" onclick="goPatient()">👤 다른 회원으로 시작</button>
+  </div>
+</div>
+
+<div id="gmiModal" class="gmi-modal"><div class="gmi-modal-box"><div id="gmiModalMsg"></div><div class="gmi-modal-btns"><button id="gmiModalNo" style="background: rgb(71, 85, 105); color: rgb(255, 255, 255); display: none;">취소</button><button id="gmiModalOk" style="background:#38bdf8;color:#000">확인</button></div></div></div>
+<script>
+  const APP_VERSION = '2026.11.17b';
+  const PART_KO = { upper: '상지', lower: '하지' };
+  function partOf(x){ return (x && x.part) === 'lower' ? 'lower' : 'upper'; }
+  function setPartVal(){ return segVal('setPart') || 'upper'; }
+
+  function showDialog(msg, withCancel){
+    return new Promise(res=>{
+      const m=document.getElementById('gmiModal');
+      document.getElementById('gmiModalMsg').innerText=msg;
+      const ok=document.getElementById('gmiModalOk'), no=document.getElementById('gmiModalNo');
+      no.style.display=withCancel?'':'none';
+      const done=v=>{m.classList.remove('show');ok.onclick=no.onclick=null;res(v);};
+      ok.onclick=()=>done(true); no.onclick=()=>done(false);
+      m.classList.add('show');
+    });
+  }
+  function gmiAlert(msg){ return showDialog(msg,false); }
+  function gmiConfirm(msg){ return showDialog(msg,true); }
+  // ===== 환자 정보 & 기록 =====
+  let currentPatient = null;
+  const REC_KEY = 'gmi_records_v1';
+  let memStore = {};
+  function loadAll(){ try { const t = localStorage.getItem(REC_KEY); return t ? JSON.parse(t) : memStore; } catch(e) { return memStore; } }
+  function saveAll(o){ memStore = o; try { localStorage.setItem(REC_KEY, JSON.stringify(o)); } catch(e) {} }
+  function pKey(p){ return p.name + '|' + p.age + '|' + p.sex; }
+  function pLabel(p){ return `[${PART_KO[partOf(p)]}] ${p.name} (${p.age}세, ${p.sex}) · 환측 ${p.side==='L'?'왼쪽':p.side==='R'?'오른쪽':'해당 없음'}`; }
+  function pickSeg(id, btn){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on', b===btn)); }
+  function segVal(id){ const b=document.querySelector('#'+id+' button.on'); return b ? b.dataset.v : ''; }
+  function setSeg(id, v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on', b.dataset.v===v)); }
+  function showView(id){ ['patientView','trainView','settingsView','resultView'].forEach(v=>document.getElementById(v).classList.toggle('active', v===id)); document.getElementById('toggleViewBtn').innerText = id==='settingsView' ? '⬅️ 돌아가기' : '⚙️ 설정'; }
+  function renderSavedPatients(){
+    const box = document.getElementById('savedPatients'); const all = loadAll(); const keys = Object.keys(all);
+    if (!keys.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div style="font-size:.85rem;color:var(--sub);margin-bottom:6px;">이 기기에 기록이 있는 회원 (누르면 자동 입력)</div>' +
+      keys.map((k,i)=>{ const p = all[k].patient; return `<button class="pt-chip" type="button" onclick="fillPatient(${i})">${escapeHtml(p.name)} · ${p.age}세 · ${p.sex}</button>`; }).join('');
+  }
+  function escapeHtml(t){ return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  window.fillPatient = function(i){ const all = loadAll(); const p = all[Object.keys(all)[i]].patient; document.getElementById('ptName').value = p.name; document.getElementById('ptAge').value = p.age; setSeg('ptSex', p.sex); setSeg('ptSide', p.side||'N'); setSeg('ptPart', partOf(p)); };
+  function goPatient(){ isPlaying = false; clearInterval(timerInterval); renderSavedPatients(); if (currentPatient) { document.getElementById('ptName').value = currentPatient.name; document.getElementById('ptAge').value = currentPatient.age; setSeg('ptSex', currentPatient.sex); setSeg('ptSide', currentPatient.side); setSeg('ptPart', partOf(currentPatient)); } showView('patientView'); }
+  function startFromPatient(){
+    const name = document.getElementById('ptName').value.trim();
+    const age = parseInt(document.getElementById('ptAge').value, 10);
+    const sex = segVal('ptSex'); const side = segVal('ptSide') || 'N'; const part = segVal('ptPart') || 'upper';
+    if (!name) { gmiAlert('이름을 입력해 주세요.'); return; }
+    if (!age || age < 1 || age > 120) { gmiAlert('나이를 정확히 입력해 주세요.'); return; }
+    if (!sex) { gmiAlert('성별을 선택해 주세요.'); return; }
+    currentPatient = { name, age, sex, side, part };
+    const all = loadAll(); const k = pKey(currentPatient);
+    if (!all[k]) all[k] = { patient: currentPatient, records: [] }; else all[k].patient = currentPatient;
+    saveAll(all);
+    startSession();
+  }
+  function sideTitles(){ const s = currentPatient ? currentPatient.side : 'N'; return { L: '왼쪽' + (s==='L'?'(환측)':s==='R'?'(건측)':''), R: '오른쪽' + (s==='R'?'(환측)':s==='L'?'(건측)':'') }; }
+  function nowStr(){ const d = new Date(); const z = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
+  function myRecords(){ if (!currentPatient) return []; const r = loadAll()[pKey(currentPatient)]; return r ? r.records : []; }
+  function renderHistory(){
+    const recs = myRecords().slice().reverse(); const t = sideTitles(); const box = document.getElementById('historyBox');
+    if (!recs.length) { box.innerHTML = '<p style="color:var(--sub);font-size:.85rem;margin-top:8px;">아직 기록이 없습니다.</p>'; return; }
+    const sub = x => x.replace(/^(왼쪽|오른쪽)(\(.+\))?$/, (m,a,b)=> a + (b ? '<small>' + b + '</small>' : ''));
+    box.innerHTML = `<table class="hist"><tr><th>날짜</th><th>문항<small>부위</small></th><th>정확도</th><th>평균</th><th>${sub(t.L)}</th><th>${sub(t.R)}</th></tr>` +
+      recs.map(r=>`<tr><td>${r.date.slice(5,10)}<small>${r.date.slice(0,4)} ${r.date.slice(11)}</small></td><td>${r.n}<small>${PART_KO[partOf(r)]}</small></td><td>${r.acc}%</td><td>${r.rt}초</td><td>${r.lAcc}%<br>${r.lRt}초</td><td>${r.rAcc}%<br>${r.rRt}초</td></tr>`).join('') + '</table>';
+  }
+  function copyText(text, okMsg){
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); let ok=false; try { ok = document.execCommand('copy'); } catch(e) {} ta.remove(); gmiAlert(ok ? okMsg : '복사가 막혀 있어요. 아래 내용을 길게 눌러 복사해 주세요.\n\n' + text); };
+    try { navigator.clipboard.writeText(text).then(() => gmiAlert(okMsg), fallback); } catch(e) { fallback(); }
+  }
+  function copyAllRecords(){
+    const recs = myRecords(); if (!recs.length) { gmiAlert('복사할 기록이 없습니다.'); return; }
+    const t = sideTitles();
+    const lines = recs.map((r,i)=>`${i+1}. ${r.date} | ${PART_KO[partOf(r)]} | ${r.n}문제 | 정확도 ${r.acc}% | 평균 ${r.rt}초 | ${t.L} ${r.lAcc}%/${r.lRt}초 | ${t.R} ${r.rAcc}%/${r.rRt}초`);
+    copyText(`[GMI 좌우 판별 훈련 누적 기록]\n${pLabel(currentPatient)}\n` + lines.join('\n'), '전체 기록이 복사되었습니다!');
+  }
+
+  let db = null;
+  let basePhotos = [];   // photos.json (모든 사용자 공통)
+  let userPhotos = [];   // 이 기기에서 추가한 사진 (IndexedDB)
+  let customPhotos = []; // 출제에 쓰는 전체 목록
+  let sessionDeck = [];
+  let currentIdx = 0;
+  let startTime = 0;
+  let timerInterval = null;
+  let results = [];
+  let isPlaying = false;
+  let isTransitioning = false;
+
+  const defaultMasterPhotos = [
+    { id: 'master_l_1', side: 'L', src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><rect width="300" height="300" fill="#0f172a"/><circle cx="150" cy="120" r="70" fill="#2563eb" opacity="0.3"/><text x="150" y="115" fill="#38bdf8" font-size="26" font-weight="bold" text-anchor="middle">LEFT (환측)</text><text x="150" y="150" fill="#f8fafc" font-size="16" text-anchor="middle">상지 샘플</text></svg>') },
+    { id: 'master_r_1', side: 'R', src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><rect width="300" height="300" fill="#0f172a"/><circle cx="150" cy="120" r="70" fill="#059669" opacity="0.3"/><text x="150" y="115" fill="#34d399" font-size="26" font-weight="bold" text-anchor="middle">RIGHT (건측)</text><text x="150" y="150" fill="#f8fafc" font-size="16" text-anchor="middle">상지 샘플</text></svg>') }
+  ];
+
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("GMIDatabase", 7);
+      request.onerror = (e) => reject(e);
+      request.onsuccess = (e) => {
+        db = e.target.result;
+        loadPhotosFromDB().then(() => resolve());
+      };
+      request.onupgradeneeded = (e) => {
+        const database = e.target.result;
+        if (!database.objectStoreNames.contains("photos")) {
+          database.createObjectStore("photos", { keyPath: "id" });
+        }
+      };
+    });
+  }
+
+  function savePhotoToDB(photo) {
+    if (!db) return;
+    const tx = db.transaction("photos", "readwrite");
+    const store = tx.objectStore("photos");
+    store.put(photo);
+  }
+
+  function deletePhotoFromDB(id) {
+    if (!db) return;
+    const tx = db.transaction("photos", "readwrite");
+    const store = tx.objectStore("photos");
+    store.delete(id);
+  }
+
+  function clearPhotosInDB() {
+    if (!db) return;
+    const tx = db.transaction("photos", "readwrite");
+    const store = tx.objectStore("photos");
+    store.clear();
+  }
+
+  function loadPhotosFromDB() {
+    return new Promise((resolve) => {
+      if (!db) { resolve(); return; }
+      const tx = db.transaction("photos", "readonly");
+      const store = tx.objectStore("photos");
+      const request = store.getAll();
+      request.onsuccess = (e) => {
+        userPhotos = e.target.result || [];
+        syncPhotos();
+        resolve();
+      };
+      request.onerror = () => resolve();
+    });
+  }
+
+  function syncPhotos(){ customPhotos = basePhotos.concat(userPhotos); renderPhotoGrid(); }
+
+  async function loadBasePhotos(){
+    try {
+      const res = await fetch('photos.json', { cache: 'no-cache' });
+      const list = await res.json();
+      basePhotos = list.map(p => ({ id: 'base_' + p.file, src: 'photos/' + p.file, side: p.side, part: partOf(p), base: true }));
+    } catch (err) {
+      console.error('photos.json 로드 실패:', err);
+      basePhotos = [];
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    renderSavedPatients();
+    await loadBasePhotos();
+    syncPhotos();
+    initDB().catch(err => { console.error("DB 로드 실패:", err); syncPhotos(); });
+    // 사진 미리 받아두기 (첫 문제부터 바로 뜨도록)
+    basePhotos.forEach(p => { const im = new Image(); im.src = p.src; });
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  }
+
+  function loadDefaultMasterPhotos() {
+    defaultMasterPhotos.forEach(item => {
+      if (!userPhotos.some(p => p.id === item.id)) {
+        const p = { id: item.id, src: item.src, side: item.side, part: 'upper' };
+        userPhotos.push(p);
+        savePhotoToDB(p);
+      }
+    });
+    syncPhotos();
+    gmiAlert('기본 마스터 샘플이 복원되었습니다!');
+  }
+
+  // 🚀 핵심 수정: async 함수 선언 복원 및 정확한 엄격 L/R 파일명 판별 로직
+  async function handleMultiFiles(e, forcedSide) {
+    const files = Array.from(e.target.files || []).filter(file => file.type.startsWith('image/'));
+    e.target.value = '';
+    if (!files.length) return;
+
+    const remaining = 100 - userPhotos.length;
+    if (remaining <= 0) {
+      gmiAlert('이 기기에서 추가할 수 있는 사진은 최대 100장입니다.');
+      return;
+    }
+    const selected = files.slice(0, remaining);
+    if (files.length > remaining) {
+      gmiAlert(`이미 ${userPhotos.length}장 추가되어 있어 ${remaining}장만 추가합니다. 한도는 100장입니다.`);
+    }
+
+    const input = document.getElementById('exportStatus');
+    let added = 0;
+    for (const file of selected) {
+      try {
+        const dataUrl = await compressPhoto(file);
+        const name = file.name.toLowerCase();
+        
+        // 기존 엄격한 L/R 분류 규칙 원상 복구 (R, right, 오 -> 오른쪽 / L, left, 왼 -> 왼쪽)
+        let autoSide = 'L';
+        if (forcedSide) { autoSide = forcedSide; } else
+        if (/(^|[\s_\-.])(r|right|오른쪽|오)/i.test(name)) {
+          autoSide = 'R';
+        } else if (/(^|[\s_\-.])(l|left|왼쪽|왼)/i.test(name)) {
+          autoSide = 'L';
+        }
+
+        const newPhoto = {
+          id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11),
+          src: dataUrl,
+          side: autoSide,
+          part: setPartVal()
+        };
+        userPhotos.push(newPhoto);
+        savePhotoToDB(newPhoto);
+        added++;
+        if (input) input.innerText = `사진 처리 중... ${added}/${selected.length}장 완료`;
+        syncPhotos();
+      } catch (err) {
+        console.error('사진 처리 실패:', file.name, err);
+      }
+    }
+    if (input) input.innerText = forcedSide ? `${PART_KO[setPartVal()]} ${forcedSide === 'L' ? '왼쪽' : '오른쪽'} 사진 ${added}장 추가 완료 (이 기기에 저장됨).` : `${added}장 추가 완료. 아래에서 좌우 분류를 확인해 주세요.`;
+    gmiAlert(input ? input.innerText : `${added}장 추가 완료`);
+    if (added < selected.length) gmiAlert(`${selected.length - added}장의 사진을 처리하지 못했습니다.`);
+  }
+
+  async function compressPhoto(file) {
+    const bitmap = await createImageBitmap(file);
+    const maxSide = 1600;
+    const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+    canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.88);
+  }
+
+  function exportRecords() {
+    const all = loadAll();
+    if (!Object.keys(all).length) { gmiAlert('내보낼 기록이 없습니다.'); return; }
+    const data = JSON.stringify({ app: 'gmi-trainer', version: APP_VERSION, exported: nowStr(), records: all }, null, 1);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'GMI_기록백업_' + nowStr().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    document.getElementById('exportStatus').innerText = '백업 파일을 저장했습니다. (회원 ' + Object.keys(all).length + '명)';
+  }
+
+  function importRecords(e) {
+    const file = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let obj;
+      try { obj = JSON.parse(reader.result); } catch (err) { gmiAlert('백업 파일을 읽지 못했습니다.'); return; }
+      const incoming = obj && obj.records;
+      if (!incoming || typeof incoming !== 'object') { gmiAlert('GMI 기록 백업 파일이 아닙니다.'); return; }
+      const all = loadAll(); let added = 0;
+      Object.keys(incoming).forEach(k => {
+        const src = incoming[k]; if (!src || !src.patient || !Array.isArray(src.records)) return;
+        if (!all[k]) all[k] = { patient: src.patient, records: [] };
+        const seen = new Set(all[k].records.map(r => r.date + '|' + r.n + '|' + r.acc + '|' + r.rt));
+        src.records.forEach(r => { const id = r.date + '|' + r.n + '|' + r.acc + '|' + r.rt; if (!seen.has(id)) { all[k].records.push(r); seen.add(id); added++; } });
+        all[k].records.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+      });
+      saveAll(all); renderSavedPatients();
+      gmiAlert(`기록 ${added}건을 불러왔습니다. (이미 있던 기록은 건너뜀)`);
+    };
+    reader.readAsText(file);
+  }
+
+  function renderPhotoGrid() {
+    const grid = document.getElementById('photoGrid');
+    const sp = setPartVal(); document.getElementById('photoCountTxt').innerText = `${PART_KO[sp]} 사진: 기본 ${basePhotos.filter(p=>partOf(p)===sp).length}장 + 내 사진 ${userPhotos.filter(p=>partOf(p)===sp).length}장`;
+    if (customPhotos.length === 0) {
+      grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:var(--sub); padding:20px;">등록된 사진이 없습니다. 위 박스를 눌러 사진을 업로드해 보세요.</div>`;
+      return;
+    }
+    const shown = customPhotos.filter(p => partOf(p) === setPartVal());
+    if (!shown.length) { grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:var(--sub); padding:20px;">${PART_KO[setPartVal()]} 사진이 아직 없습니다. 위 L / R 박스를 눌러 올려 주세요.</div>`; return; }
+    grid.innerHTML = shown.map((p) => `
+      <div class="photo-item${p.base ? ' base' : ''}">${p.base ? '<span class="base-tag">기본</span>' : ''}
+        <button class="del-btn" type="button" onclick="window.deletePhotoItem('${p.id}')">✕</button>
+        <img src="${p.src}" alt="photo">
+        <div class="side-toggle">
+          <button type="button" class="${p.side === 'L' ? 'active-L' : ''}" onclick="window.setPhotoSideItem('${p.id}', 'L')">왼쪽</button>
+          <button type="button" class="${p.side === 'R' ? 'active-R' : ''}" onclick="window.setPhotoSideItem('${p.id}', 'R')">오른쪽</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.setPhotoSideItem = function(id, side) {
+    const photo = userPhotos.find(p => p.id === id);
+    if (photo) {
+      photo.side = side;
+      savePhotoToDB(photo);
+      renderPhotoGrid();
+    }
+  };
+
+  window.deletePhotoItem = function(id) {
+    userPhotos = userPhotos.filter(p => p.id !== id);
+    deletePhotoFromDB(id);
+    syncPhotos();
+  };
+
+  function clearAllPhotos() {
+    if (!userPhotos.length) { gmiAlert('이 기기에서 추가한 사진이 없습니다. (기본 사진은 삭제되지 않습니다)'); return; }
+    gmiConfirm(`이 기기에서 추가한 사진 ${userPhotos.length}장을 모두 삭제하시겠습니까?\n(기본 사진은 그대로 남습니다)`).then(ok => { if (!ok) return;
+      userPhotos = [];
+      clearPhotosInDB();
+      syncPhotos();
+    });
+  }
+
+  function toggleSettings() {
+    if (document.getElementById('settingsView').classList.contains('active')) {
+      returnToTraining();
+    } else {
+      isPlaying = false;
+      clearInterval(timerInterval);
+      showView('settingsView');
+      if (currentPatient) setSeg('setPart', partOf(currentPatient));
+      renderPhotoGrid();
+    }
+  }
+
+  function returnToTraining() {
+    isPlaying = false;
+    clearInterval(timerInterval);
+    if (!currentPatient) { goPatient(); return; }
+    showView('trainView');
+    document.getElementById('patientTag').innerText = pLabel(currentPatient);
+    document.getElementById('progressTxt').innerText = `준비 완료`;
+    document.getElementById('timerTxt').innerText = `0.00초`;
+    document.getElementById('cardContent').innerHTML = `
+      <p style="color:var(--sub); margin-bottom:14px;">준비 완료! 아래 시작 버튼을 눌러주세요.</p>
+      <button class="nav-btn" style="background:var(--accent); color:#000; font-size:1.05rem; padding:12px 24px;" onclick="startSession()">▶ 훈련 시작하기</button>
+    `;
+  }
+
+  function startSession() {
+    if (!currentPatient) { goPatient(); return; }
+    isPlaying = false;
+    clearInterval(timerInterval);
+    isTransitioning = false;
+
+    const totalQ = parseInt(document.getElementById('totalQSelect').value, 10);
+    const useRotate = document.getElementById('rotateCheck').checked;
+    const customOnly = document.getElementById('customOnlyCheck').checked;
+
+    const part = partOf(currentPatient);
+    const pool = customPhotos.filter(p => partOf(p) === part);
+    const allowSvg = part === 'upper' && !customOnly; // 기본 손 일러스트는 상지에만
+    if (!pool.length && !allowSvg) {
+      gmiAlert(`${PART_KO[part]} 사진이 아직 없습니다! [⚙️ 설정]에서 ${PART_KO[part]}를 고른 뒤 사진을 먼저 올려 주세요.`);
+      return;
+    }
+
+    sessionDeck = [];
+    results = [];
+    currentIdx = 0;
+    const angles = useRotate ? [0, 90, 180, 270] : [0];
+
+    for (let i = 0; i < totalQ; i++) {
+      const rot = angles[Math.floor(Math.random() * angles.length)];
+      if (pool.length > 0 && (!allowSvg || Math.random() < 0.7)) {
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const flip = Math.random() < 0.5;
+        const finalSide = flip ? (pick.side === 'L' ? 'R' : 'L') : pick.side;
+        sessionDeck.push({ type: 'img', src: pick.src, side: finalSide, rot, flip });
+      } else {
+        const side = Math.random() < 0.5 ? 'L' : 'R';
+        const pose = Math.random() < 0.5 ? 1 : 2;
+        sessionDeck.push({ type: 'svg', pose, side, rot });
+      }
+    }
+
+    showView('trainView');
+    document.getElementById('patientTag').innerText = pLabel(currentPatient);
+    
+    isPlaying = true;
+    showCurrentCard();
+  }
+
+  function showCurrentCard() {
+    if (currentIdx >= sessionDeck.length) {
+      finishSession();
+      return;
+    }
+    isTransitioning = false;
+    const item = sessionDeck[currentIdx];
+    document.getElementById('progressTxt').innerText = `문제 ${currentIdx + 1} / ${sessionDeck.length}`;
+    const cardEl = document.getElementById('cardContent');
+
+    if (item.type === 'img') {
+      const scaleX = item.flip ? -1 : 1;
+      cardEl.innerHTML = `<img src="${item.src}" style="transform: rotate(${item.rot}deg) scaleX(${scaleX});">`;
+    } else {
+      const scaleX = item.side === 'L' ? -1 : 1;
+      cardEl.innerHTML = `<div style="transform: rotate(${item.rot}deg) scaleX(${scaleX}); display:inline-block;">${getBuiltInHandSVG(item.pose)}</div>`;
+    }
+
+    startTime = performance.now();
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+      document.getElementById('timerTxt').innerText = `${elapsed}초`;
+    }, 50);
+  }
+
+  function submitAnswer(ans) {
+    if (!isPlaying || isTransitioning) return;
+    isTransitioning = true;
+
+    clearInterval(timerInterval);
+    const rt = (performance.now() - startTime) / 1000;
+    const item = sessionDeck[currentIdx];
+    const correct = (ans === item.side);
+
+    results.push({ side: item.side, correct, rt });
+
+    const badge = document.getElementById('feedbackBadge');
+    badge.style.display = 'block';
+    badge.style.background = correct ? '#059669' : '#ef4444';
+    badge.innerText = correct ? `⭕ 정답 (${rt.toFixed(2)}초)` : `❌ 오답 (${rt.toFixed(2)}초)`;
+
+    setTimeout(() => {
+      badge.style.display = 'none';
+      currentIdx++;
+      showCurrentCard();
+    }, 400);
+  }
+
+  function finishSession() {
+    isPlaying = false;
+    clearInterval(timerInterval);
+
+    showView('resultView');
+
+    const total = results.length;
+    const correctCount = results.filter(r => r.correct).length;
+    const avgTime = results.reduce((a, b) => a + b.rt, 0) / total;
+
+    const leftItems = results.filter(r => r.side === 'L');
+    const rightItems = results.filter(r => r.side === 'R');
+
+    const leftAcc = leftItems.length ? Math.round((leftItems.filter(r => r.correct).length / leftItems.length) * 100) : 0;
+    const leftRt = leftItems.length ? (leftItems.reduce((a, b) => a + b.rt, 0) / leftItems.length).toFixed(2) : '0.00';
+
+    const rightAcc = rightItems.length ? Math.round((rightItems.filter(r => r.correct).length / rightItems.length) * 100) : 0;
+    const rightRt = rightItems.length ? (rightItems.reduce((a, b) => a + b.rt, 0) / rightItems.length).toFixed(2) : '0.00';
+
+    document.getElementById('resAcc').innerText = `${Math.round((correctCount / total) * 100)}%`;
+    document.getElementById('resTime').innerText = `${avgTime.toFixed(2)}초`;
+    document.getElementById('resLeft').innerText = `${leftAcc}% / ${leftRt}초`;
+    document.getElementById('resRight').innerText = `${rightAcc}% / ${rightRt}초`;
+    const t = sideTitles();
+    document.getElementById('resLeftTitle').innerText = t.L + ' 정확도 / 시간';
+    document.getElementById('resRightTitle').innerText = t.R + ' 정확도 / 시간';
+    document.getElementById('resPatientTag').innerText = pLabel(currentPatient);
+    const all = loadAll(); const k = pKey(currentPatient);
+    if (!all[k]) all[k] = { patient: currentPatient, records: [] };
+    all[k].records.push({ date: nowStr(), n: total, acc: Math.round((correctCount / total) * 100), rt: avgTime.toFixed(2), part: partOf(currentPatient), lAcc: leftAcc, lRt: leftRt, rAcc: rightAcc, rRt: rightRt });
+    saveAll(all);
+    renderHistory();
+  }
+
+  function copyReport() {
+    const acc = document.getElementById('resAcc').innerText;
+    const time = document.getElementById('resTime').innerText;
+    const left = document.getElementById('resLeft').innerText;
+    const right = document.getElementById('resRight').innerText;
+    const t = sideTitles();
+    const text = `[GMI 좌우 판별 훈련 기록]\n${pLabel(currentPatient)}\n- 일시: ${nowStr()}\n- 전체 정확도: ${acc} / 평균 반응시간: ${time}\n- ${t.L}: ${left}\n- ${t.R}: ${right}`;
+    copyText(text, '이번 결과가 복사되었습니다!');
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (!isPlaying) return;
+    if (e.key === 'ArrowLeft') submitAnswer('L');
+    if (e.key === 'ArrowRight') submitAnswer('R');
+  });
+
+  function getBuiltInHandSVG(pose) {
+    if (pose === 1) {
+      return `<svg viewBox="0 0 200 240" width="220" height="220">
+        <path d="M70,210 L70,120 L40,145 C32,152 22,142 28,132 L65,90 L75,40 C77,28 92,28 92,40 L92,85 L100,25 C102,12 117,12 117,25 L115,85 L125,30 C127,18 142,18 142,30 L138,90 L150,48 C153,36 167,40 164,52 L150,125 L145,210 Z" fill="#f1c27d" stroke="#d29953" stroke-width="4" stroke-linejoin="round"/>
+        <text x="108" y="165" font-size="16" fill="#5c3c10" font-weight="bold" text-anchor="middle">손등</text>
+      </svg>`;
+    } else {
+      return `<svg viewBox="0 0 200 240" width="220" height="220">
+        <g transform="scale(-1,1) translate(-200,0)">
+          <path d="M70,210 L70,120 L40,145 C32,152 22,142 28,132 L65,90 L75,40 C77,28 92,28 92,40 L92,85 L100,25 C102,12 117,12 117,25 L115,85 L125,30 C127,18 142,18 142,30 L138,90 L150,48 C153,36 167,40 164,52 L150,125 L145,210 Z" fill="#ffdbac" stroke="#c68642" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M80,135 Q110,155 140,135" fill="none" stroke="#c68642" stroke-width="3"/>
+        </g>
+        <text x="92" y="175" font-size="16" fill="#5c3c10" font-weight="bold" text-anchor="middle">손바닥</text>
+      </svg>`;
+    }
+  }
+</script>
+
+</body></html>
