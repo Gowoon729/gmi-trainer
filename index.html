@@ -69,6 +69,10 @@
     .seg{display:flex;gap:8px}
     .seg button{flex:1;padding:12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#f8fafc;font-size:1rem;font-weight:700;cursor:pointer}
     .seg button.on{background:var(--accent);color:#000;border-color:var(--accent)}
+    .pt-chip-wrap{display:inline-flex;margin:0 6px 6px 0;border-radius:999px;overflow:hidden;background:#334155}
+    .pt-chip-wrap .pt-chip{margin:0;border-radius:0}
+    .pt-chip-del{border:none;background:#475569;color:#fca5a5;padding:0 10px;font-size:.8rem;cursor:pointer}
+    .rec-del{border:none;background:none;color:#fca5a5;font-size:.9rem;cursor:pointer;padding:4px}
     .pt-chip{display:inline-block;margin:0 6px 6px 0;padding:6px 10px;border-radius:999px;background:#334155;color:#f8fafc;border:none;font-size:.85rem;cursor:pointer}
     .hist{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}
     .hist th,.hist td{border-bottom:1px solid #334155;padding:7px 4px;text-align:center}
@@ -400,7 +404,7 @@
     <div style="margin-top:22px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <h3 style="font-size:1rem;">🗂 누적 기록</h3>
-        <button class="small-btn" style="background:#475569;" onclick="copyAllRecords()">📋 전체 기록 복사</button>
+        <div style="display:flex;gap:6px;"><button class="small-btn" style="background:#475569;" onclick="copyAllRecords()">📋 전체 복사</button><button class="small-btn" style="background:var(--danger);" onclick="deleteAllRecordsOfPatient()">🗑 기록 전체 삭제</button></div>
       </div>
       <div id="historyBox"></div>
     </div>
@@ -410,7 +414,7 @@
 
 <div id="gmiModal" class="gmi-modal"><div class="gmi-modal-box"><div id="gmiModalMsg"></div><div class="gmi-modal-btns"><button id="gmiModalNo" style="background: rgb(71, 85, 105); color: rgb(255, 255, 255); display: none;">취소</button><button id="gmiModalOk" style="background:#38bdf8;color:#000">확인</button></div></div></div>
 <script>
-  const APP_VERSION = '2026.11.17b';
+  const APP_VERSION = '2026.11.17c';
   const PART_KO = { upper: '상지', lower: '하지' };
   function partOf(x){ return (x && x.part) === 'lower' ? 'lower' : 'upper'; }
   function setPartVal(){ return segVal('setPart') || 'upper'; }
@@ -444,7 +448,7 @@
     const box = document.getElementById('savedPatients'); const all = loadAll(); const keys = Object.keys(all);
     if (!keys.length) { box.innerHTML = ''; return; }
     box.innerHTML = '<div style="font-size:.85rem;color:var(--sub);margin-bottom:6px;">이 기기에 기록이 있는 회원 (누르면 자동 입력)</div>' +
-      keys.map((k,i)=>{ const p = all[k].patient; return `<button class="pt-chip" type="button" onclick="fillPatient(${i})">${escapeHtml(p.name)} · ${p.age}세 · ${p.sex}</button>`; }).join('');
+      keys.map((k,i)=>{ const p = all[k].patient; return `<span class="pt-chip-wrap"><button class="pt-chip" type="button" onclick="fillPatient(${i})">${escapeHtml(p.name)} · ${p.age}세 · ${p.sex}</button><button class="pt-chip-del" type="button" onclick="deletePatient(${i})" aria-label="회원 삭제">✕</button></span>`; }).join('');
   }
   function escapeHtml(t){ return String(t).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   window.fillPatient = function(i){ const all = loadAll(); const p = all[Object.keys(all)[i]].patient; document.getElementById('ptName').value = p.name; document.getElementById('ptAge').value = p.age; setSeg('ptSex', p.sex); setSeg('ptSide', p.side||'N'); setSeg('ptPart', partOf(p)); };
@@ -466,12 +470,31 @@
   function nowStr(){ const d = new Date(); const z = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
   function myRecords(){ if (!currentPatient) return []; const r = loadAll()[pKey(currentPatient)]; return r ? r.records : []; }
   function renderHistory(){
-    const recs = myRecords().slice().reverse(); const t = sideTitles(); const box = document.getElementById('historyBox');
+    const recs = myRecords().map((r,i)=>({...r,_i:i})).reverse(); const t = sideTitles(); const box = document.getElementById('historyBox');
     if (!recs.length) { box.innerHTML = '<p style="color:var(--sub);font-size:.85rem;margin-top:8px;">아직 기록이 없습니다.</p>'; return; }
     const sub = x => x.replace(/^(왼쪽|오른쪽)(\(.+\))?$/, (m,a,b)=> a + (b ? '<small>' + b + '</small>' : ''));
-    box.innerHTML = `<table class="hist"><tr><th>날짜</th><th>문항<small>부위</small></th><th>정확도</th><th>평균</th><th>${sub(t.L)}</th><th>${sub(t.R)}</th></tr>` +
-      recs.map(r=>`<tr><td>${r.date.slice(5,10)}<small>${r.date.slice(0,4)} ${r.date.slice(11)}</small></td><td>${r.n}<small>${PART_KO[partOf(r)]}</small></td><td>${r.acc}%</td><td>${r.rt}초</td><td>${r.lAcc}%<br>${r.lRt}초</td><td>${r.rAcc}%<br>${r.rRt}초</td></tr>`).join('') + '</table>';
+    box.innerHTML = `<table class="hist"><tr><th>날짜</th><th>문항<small>부위</small></th><th>정확도</th><th>평균</th><th>${sub(t.L)}</th><th>${sub(t.R)}</th><th></th></tr>` +
+      recs.map(r=>`<tr><td>${r.date.slice(5,10)}<small>${r.date.slice(0,4)} ${r.date.slice(11)}</small></td><td>${r.n}<small>${PART_KO[partOf(r)]}</small></td><td>${r.acc}%</td><td>${r.rt}초</td><td>${r.lAcc}%<br>${r.lRt}초</td><td>${r.rAcc}%<br>${r.rRt}초</td><td><button class="rec-del" type="button" onclick="deleteRecord(${r._i})">✕</button></td></tr>`).join('') + '</table>';
   }
+  window.deleteRecord = async function(i){
+    const all = loadAll(); const k = pKey(currentPatient); const r = all[k] && all[k].records[i]; if (!r) return;
+    if (!await gmiConfirm(`이 기록을 삭제할까요?\n${r.date} · ${r.n}문제 · 정확도 ${r.acc}%`)) return;
+    all[k].records.splice(i, 1); saveAll(all); renderHistory();
+  };
+  async function deleteAllRecordsOfPatient(){
+    if (!currentPatient) return;
+    const all = loadAll(); const k = pKey(currentPatient); const n = all[k] ? all[k].records.length : 0;
+    if (!n) { gmiAlert('삭제할 기록이 없습니다.'); return; }
+    if (!await gmiConfirm(`${currentPatient.name}님의 기록 ${n}건을 모두 삭제할까요?\n되돌릴 수 없습니다.`)) return;
+    all[k].records = []; saveAll(all); renderHistory();
+  }
+  window.deletePatient = async function(i){
+    const all = loadAll(); const k = Object.keys(all)[i]; if (!k) return; const p = all[k].patient;
+    if (!await gmiConfirm(`${p.name} (${p.age}세, ${p.sex}) 회원과 기록 ${all[k].records.length}건을 모두 삭제할까요?\n되돌릴 수 없습니다.`)) return;
+    delete all[k]; saveAll(all);
+    if (currentPatient && pKey(currentPatient) === k) currentPatient = null;
+    renderSavedPatients();
+  };
   function copyText(text, okMsg){
     const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); let ok=false; try { ok = document.execCommand('copy'); } catch(e) {} ta.remove(); gmiAlert(ok ? okMsg : '복사가 막혀 있어요. 아래 내용을 길게 눌러 복사해 주세요.\n\n' + text); };
     try { navigator.clipboard.writeText(text).then(() => gmiAlert(okMsg), fallback); } catch(e) { fallback(); }
